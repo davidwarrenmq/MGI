@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medical-guideline-index"
+version = "0.1.0"
+description = "Medical Guideline Index (MGI): a searchable index of reputable medical guidelines that resolves guideline citations to direct, verifiable document links. Complements the Citation Checker (Paper A)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "MGI Project" }]
+keywords = ["medical", "guidelines", "citation", "resolver", "evidence"]
+
+# Core has ZERO hard third-party deps: GuidelineRecord, store (stdlib sqlite3),
+# search and resolve all use only the standard library. Extras are optional.
+dependencies = []
+
+[project.optional-dependencies]
+yaml = ["PyYAML>=6.0"]          # nicer issuers.yaml loading (a minimal fallback parser ships built-in)
+crawl = ["requests>=2.28", "beautifulsoup4>=4.11"]
+app = ["fastapi>=0.100", "uvicorn>=0.23"]
+pandas = ["pandas>=1.5"]
+dev = ["pytest>=7.0"]
+all = ["PyYAML>=6.0", "requests>=2.28", "beautifulsoup4>=4.11", "fastapi>=0.100", "uvicorn>=0.23", "pandas>=1.5", "pytest>=7.0"]
+
+[project.scripts]
+mgi-build-index = "scripts.build_index:main"
+
+[tool.setuptools]
+packages = ["mgi", "mgi.crawl"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+mgi = ["issuers.yaml", "seed_guidelines.jsonl"]

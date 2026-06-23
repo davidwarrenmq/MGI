@@ -1,0 +1,703 @@
+# Medical Guideline Index — issuer registry (scope §4) + guideline trigger
+# terms (scope §13.4). This file is the SINGLE SOURCE OF TRUTH: adding an issuer
+# needs only an edit here, no code change (scope §5).
+
+# Guideline-citation trigger terms. MGI recognises at least the same set the
+# Citation Checker uses so the two systems agree on what counts as a guideline
+# citation (scope §7 / §13.4).
+triggers:
+  - "guideline"
+  - "guidelines"
+  - "clinical practice guideline"
+  - "practice guideline"
+  - "position statement"
+  - "consensus statement"
+  - "consensus"
+  - "technology appraisal"
+  - "recommendation"
+  - "recommendations"
+  - "College of"
+  - "Society of"
+  - "Task Force"
+  - "Therapeutic Guidelines"
+  - "UpToDate"
+  - "Cochrane"
+
+# Common abbreviation -> full-name expansions applied during citation
+# normalisation (scope §7 step 1).
+
+abbrev_expansions:
+  WHO: "World Health Organization"
+  NICE: "National Institute for Health and Care Excellence"
+  USPSTF: "U.S. Preventive Services Task Force"
+  CDC: "Centers for Disease Control and Prevention"
+  NCCN: "National Comprehensive Cancer Network"
+  SIGN: "Scottish Intercollegiate Guidelines Network"
+  NHMRC: "National Health and Medical Research Council"
+  ACSQHC: "Australian Commission on Safety and Quality in Health Care"
+  ESC: "European Society of Cardiology"
+  AHA: "American Heart Association"
+  ACC: "American College of Cardiology"
+  ACP: "American College of Physicians"
+  IDSA: "Infectious Diseases Society of America"
+  ESCMID: "European Society of Clinical Microbiology and Infectious Diseases"
+  RACGP: "Royal Australian College of General Practitioners"
+  RCGP: "Royal College of General Practitioners"
+  RCP: "Royal College of Physicians"
+  AAP: "American Academy of Pediatrics"
+  ADA: "American Diabetes Association"
+  AACE: "American Association of Clinical Endocrinology"
+  EASD: "European Association for the Study of Diabetes"
+  ENDO: "Endocrine Society"
+  ASCO: "American Society of Clinical Oncology"
+  ASTRO: "American Society for Radiation Oncology"
+  ASH: "American Society of Hematology"
+  ESMO: "European Society for Medical Oncology"
+  ACR: "American College of Rheumatology"
+  EULAR: "European Alliance of Associations for Rheumatology"
+  AAN: "American Academy of Neurology"
+  EAN: "European Academy of Neurology"
+  ATS: "American Thoracic Society"
+  ERS: "European Respiratory Society"
+  GINA: "Global Initiative for Asthma"
+  GOLD: "Global Initiative for Chronic Obstructive Lung Disease"
+  ACG: "American College of Gastroenterology"
+  AGA: "American Gastroenterological Association"
+  BSG: "British Society of Gastroenterology"
+  EASL: "European Association for the Study of the Liver"
+  KDIGO: "Kidney Disease Improving Global Outcomes"
+  UKKA: "UK Kidney Association"
+  ACOG: "American College of Obstetricians and Gynecologists"
+  SMFM: "Society for Maternal-Fetal Medicine"
+  RANZCOG: "Royal Australian and New Zealand College of Obstetricians and Gynaecologists"
+  RCOG: "Royal College of Obstetricians and Gynaecologists"
+  RANZCP: "Royal Australian and New Zealand College of Psychiatrists"
+  APA: "American Psychiatric Association"
+  SCCM: "Society of Critical Care Medicine"
+  ESICM: "European Society of Intensive Care Medicine"
+  ANZICS: "Australian and New Zealand Intensive Care Society"
+  ARC: "Australian Resuscitation Council"
+  RCUK: "Resuscitation Council UK"
+  CSANZ: "Cardiac Society of Australia and New Zealand"
+  TSANZ: "Thoracic Society of Australia and New Zealand"
+  ASID: "Australasian Society for Infectious Diseases"
+  BIA: "British Infection Association"
+  BSH: "British Society for Haematology"
+  EAU: "European Association of Urology"
+  BTS: "British Thoracic Society"
+  CTFPHC: "Canadian Task Force on Preventive Health Care"
+  GIN: "Guidelines International Network"
+  CMA: "Canadian Medical Association"
+  MOH-NZ: "Ministry of Health New Zealand"
+  TeWhatuOra: "Health New Zealand"
+  CCA: "Cancer Council Australia"
+  eviQ: "eviQ Cancer Treatments Online"
+  SF: "Stroke Foundation"
+  RCH: "Royal Children's Hospital Melbourne Clinical Practice Guidelines"
+  FDA: "Food and Drug Administration"
+  EMA: "European Medicines Agency"
+  TGA: "Therapeutic Goods Administration"
+  NCI: "National Cancer Institute"
+  AHRQ: "Agency for Healthcare Research and Quality"
+
+issuers:
+
+  - name: "World Health Organization"
+    abbrev: "WHO"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.who.int"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "National Institute for Health and Care Excellence"
+    abbrev: "NICE"
+    country: "GB"
+    tier: "A"
+    base_url: "https://www.nice.org.uk"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Scottish Intercollegiate Guidelines Network"
+    abbrev: "SIGN"
+    country: "GB"
+    tier: "A"
+    base_url: "https://www.sign.ac.uk"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "National Health and Medical Research Council"
+    abbrev: "NHMRC"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.nhmrc.gov.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Australian Commission on Safety and Quality in Health Care"
+    abbrev: "ACSQHC"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.safetyandquality.gov.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "U.S. Preventive Services Task Force"
+    abbrev: "USPSTF"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.uspreventiveservicestaskforce.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Centers for Disease Control and Prevention"
+    abbrev: "CDC"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.cdc.gov"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Agency for Healthcare Research and Quality"
+    abbrev: "AHRQ"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.ahrq.gov"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "National Cancer Institute"
+    abbrev: "NCI"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.cancer.gov"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Health New Zealand"
+    abbrev: "TeWhatuOra"
+    country: "NZ"
+    tier: "A"
+    base_url: "https://www.health.govt.nz"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Ministry of Health New Zealand"
+    abbrev: "MOH-NZ"
+    country: "NZ"
+    tier: "A"
+    base_url: "https://www.health.govt.nz"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Guidelines International Network"
+    abbrev: "GIN"
+    country: "international"
+    tier: "A"
+    base_url: "https://g-i-n.net"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Cochrane Library"
+    abbrev: "Cochrane"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.cochranelibrary.com"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Australian Therapeutic Guidelines"
+    abbrev: "eTG"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.tg.org.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "eviQ Cancer Treatments Online"
+    abbrev: "eviQ"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.eviq.org.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Cancer Council Australia"
+    abbrev: "CCA"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.cancer.org.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Society of Cardiology"
+    abbrev: "ESC"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.escardio.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Heart Association"
+    abbrev: "AHA"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.heart.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American College of Cardiology"
+    abbrev: "ACC"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.acc.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Cardiac Society of Australia and New Zealand"
+    abbrev: "CSANZ"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.csanz.edu.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American College of Physicians"
+    abbrev: "ACP"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.acponline.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Infectious Diseases Society of America"
+    abbrev: "IDSA"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.idsociety.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Society of Clinical Microbiology and Infectious Diseases"
+    abbrev: "ESCMID"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.escmid.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Australasian Society for Infectious Diseases"
+    abbrev: "ASID"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.asid.net.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "National Comprehensive Cancer Network"
+    abbrev: "NCCN"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.nccn.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Society of Clinical Oncology"
+    abbrev: "ASCO"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.asco.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Society for Medical Oncology"
+    abbrev: "ESMO"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.esmo.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Society of Hematology"
+    abbrev: "ASH"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.hematology.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "British Society for Haematology"
+    abbrev: "BSH"
+    country: "GB"
+    tier: "A"
+    base_url: "https://b-s-h.org.uk"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Diabetes Association"
+    abbrev: "ADA"
+    country: "US"
+    tier: "A"
+    base_url: "https://diabetes.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Association of Clinical Endocrinology"
+    abbrev: "AACE"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.aace.com"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Association for the Study of Diabetes"
+    abbrev: "EASD"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.easd.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Endocrine Society"
+    abbrev: "ENDO"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.endocrine.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Diabetes Australia"
+    abbrev: "DA"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.diabetesaustralia.com.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Diabetes Canada"
+    abbrev: "DC"
+    country: "CA"
+    tier: "A"
+    base_url: "https://www.diabetes.ca"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Thoracic Society of Australia and New Zealand"
+    abbrev: "TSANZ"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.thoracic.org.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Thoracic Society"
+    abbrev: "ATS"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.thoracic.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Respiratory Society"
+    abbrev: "ERS"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.ersnet.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "British Thoracic Society"
+    abbrev: "BTS"
+    country: "GB"
+    tier: "A"
+    base_url: "https://www.brit-thoracic.org.uk"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Global Initiative for Asthma"
+    abbrev: "GINA"
+    country: "international"
+    tier: "A"
+    base_url: "https://ginasthma.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Global Initiative for Chronic Obstructive Lung Disease"
+    abbrev: "GOLD"
+    country: "international"
+    tier: "A"
+    base_url: "https://goldcopd.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American College of Gastroenterology"
+    abbrev: "ACG"
+    country: "US"
+    tier: "A"
+    base_url: "https://gi.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Gastroenterological Association"
+    abbrev: "AGA"
+    country: "US"
+    tier: "A"
+    base_url: "https://gastro.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "British Society of Gastroenterology"
+    abbrev: "BSG"
+    country: "GB"
+    tier: "A"
+    base_url: "https://www.bsg.org.uk"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Association for the Study of the Liver"
+    abbrev: "EASL"
+    country: "international"
+    tier: "A"
+    base_url: "https://easl.eu"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Kidney Disease Improving Global Outcomes"
+    abbrev: "KDIGO"
+    country: "international"
+    tier: "A"
+    base_url: "https://kdigo.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "UK Kidney Association"
+    abbrev: "UKKA"
+    country: "GB"
+    tier: "A"
+    base_url: "https://ukkidney.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Academy of Neurology"
+    abbrev: "AAN"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.aan.com"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Academy of Neurology"
+    abbrev: "EAN"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.ean.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Stroke Foundation"
+    abbrev: "SF"
+    country: "AU"
+    tier: "A"
+    base_url: "https://strokefoundation.org.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American College of Rheumatology"
+    abbrev: "ACR"
+    country: "US"
+    tier: "A"
+    base_url: "https://rheumatology.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Alliance of Associations for Rheumatology"
+    abbrev: "EULAR"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.eular.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Association of Urology"
+    abbrev: "EAU"
+    country: "international"
+    tier: "A"
+    base_url: "https://uroweb.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Royal Australian and New Zealand College of Obstetricians and Gynaecologists"
+    abbrev: "RANZCOG"
+    country: "AU"
+    tier: "A"
+    base_url: "https://ranzcog.edu.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Royal College of Obstetricians and Gynaecologists"
+    abbrev: "RCOG"
+    country: "GB"
+    tier: "A"
+    base_url: "https://www.rcog.org.uk"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American College of Obstetricians and Gynecologists"
+    abbrev: "ACOG"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.acog.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Society for Maternal-Fetal Medicine"
+    abbrev: "SMFM"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.smfm.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Academy of Pediatrics"
+    abbrev: "AAP"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.aap.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Royal Children's Hospital Melbourne Clinical Practice Guidelines"
+    abbrev: "RCH"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.rch.org.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Royal Australian College of General Practitioners"
+    abbrev: "RACGP"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.racgp.org.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Royal College of General Practitioners"
+    abbrev: "RCGP"
+    country: "GB"
+    tier: "A"
+    base_url: "https://www.rcgp.org.uk"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Royal Australian and New Zealand College of Psychiatrists"
+    abbrev: "RANZCP"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.ranzcp.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "American Psychiatric Association"
+    abbrev: "APA"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.psychiatry.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Royal Australasian College of Surgeons"
+    abbrev: "RACS"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.surgeons.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Royal Australian and New Zealand College of Radiologists"
+    abbrev: "RANZCR"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.ranzcr.com"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Australian and New Zealand Intensive Care Society"
+    abbrev: "ANZICS"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.anzics.com.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Society of Critical Care Medicine"
+    abbrev: "SCCM"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.sccm.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Society of Intensive Care Medicine"
+    abbrev: "ESICM"
+    country: "international"
+    tier: "A"
+    base_url: "https://www.esicm.org"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Australian Resuscitation Council"
+    abbrev: "ARC"
+    country: "AU"
+    tier: "A"
+    base_url: "https://resus.org.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Resuscitation Council UK"
+    abbrev: "RCUK"
+    country: "GB"
+    tier: "A"
+    base_url: "https://www.resus.org.uk"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Therapeutic Goods Administration"
+    abbrev: "TGA"
+    country: "AU"
+    tier: "A"
+    base_url: "https://www.tga.gov.au"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Food and Drug Administration"
+    abbrev: "FDA"
+    country: "US"
+    tier: "A"
+    base_url: "https://www.fda.gov"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "European Medicines Agency"
+    abbrev: "EMA"
+    country: "EU"
+    tier: "A"
+    base_url: "https://www.ema.europa.eu"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Canadian Task Force on Preventive Health Care"
+    abbrev: "CTFPHC"
+    country: "CA"
+    tier: "A"
+    base_url: "https://canadiantaskforce.ca"
+    crawl_strategy: "generic"
+    robots_respect: true
+
+  - name: "Canadian Medical Association"
+    abbrev: "CMA"
+    country: "CA"
+    tier: "B"
+    base_url: "https://www.cma.ca"
+    crawl_strategy: "generic"
+    robots_respect: true
