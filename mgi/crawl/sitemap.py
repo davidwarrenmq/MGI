@@ -104,14 +104,25 @@ _DOI_RX = re.compile(r"\b10\.\d{4,9}/[-._;()/:a-z0-9]+", re.IGNORECASE)
 _YEAR_RX = re.compile(r"\b(?:19|20)\d{2}\b")
 
 
-def extract_page_meta(html: str) -> Dict[str, Optional[str]]:
+def extract_page_meta(html: str, url: str = "") -> Dict[str, Optional[str]]:
     """Best-effort page metadata: title, doi, year (scope §8 / parse.py)."""
     meta: Dict[str, Optional[str]] = {"title": None, "doi": None, "year": None}
     if not html:
         return meta
+    
+    # Try parsing standard HTML layout title first
     m = _TITLE_RX.search(html)
     if m:
         meta["title"] = " ".join(re.sub(r"<[^>]+>", " ", m.group(1)).split())
+    elif url:
+        # Fallback for direct PDF links or binary content downloads:
+        # Generates a clean human-readable title directly from the final slug
+        slug = url.split("/")[-1].split("?")[0]
+        slug = re.sub(r"\.(pdf|html|aspx|php)$", "", slug, flags=re.IGNORECASE)
+        slug = re.sub(r"[-_\s]+", " ", slug)
+        if slug.strip():
+            meta["title"] = slug.strip().title()
+            
     d = _DOI_RX.search(html)
     if d:
         meta["doi"] = d.group(0).rstrip(".,);").lower()

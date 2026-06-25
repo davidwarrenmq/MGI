@@ -178,7 +178,7 @@ issuers:
     abbrev: "TeWhatuOra"
     country: "NZ"
     tier: "A"
-    base_url: "https://www.health.govt.nz"
+    base_url: "https://www.tewhatuora.govt.nz"
     crawl_strategy: "generic"
     robots_respect: true
 

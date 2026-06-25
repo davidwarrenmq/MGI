@@ -1,24 +1,11 @@
 """Per-issuer crawl strategies (registry-driven) -> GuidelineRecords (scope §8/§9).
-
-Each strategy declares, for one issuer abbrev:
-
-* ``listing_urls`` -- index/sitemap pages to discover document links from,
-* ``doc_pattern``  -- regex selecting *document* links (not nav/marketing),
-* ``build`` (optional) -- override to refine title/identifier/topics.
-
-The registry (``issuers.yaml``) remains the single source of truth for issuer
-identity (name/country/tier/base_url); strategies add only the parse rules, so
-adding an issuer is data + one small strategy entry (scope §5, §8).
-
-This module performs NO network on import. ``crawl_issuers`` accepts an injected
-crawler/store for testability, and degrades gracefully when networking or an
-issuer page is unavailable (system prompt §7).
 """
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from ..guideline_record import GuidelineRecord
 from ..registry import Issuer, Registry, load_registry
@@ -29,18 +16,16 @@ from .sitemap import parse_sitemap, extract_links, extract_page_meta
 @dataclass
 class Strategy:
     """Parse rules for one issuer (keyed by abbrev)."""
-
     abbrev: str
     listing_urls: List[str] = field(default_factory=list)
     sitemap_urls: List[str] = field(default_factory=list)
-    doc_pattern: str = ""                      # regex: which links are documents
-    identifier_pattern: str = ""               # regex: extract issuer code from URL
+    doc_pattern: str = ""                      
+    identifier_pattern: str = ""               
     default_doc_type: str = "guideline"
     topics: List[str] = field(default_factory=list)
     max_docs: int = 200
 
 
-# --- the seed set of strategies (NICE, WHO, NHMRC, CDC) -----------------
 STRATEGIES: Dict[str, Strategy] = {
     "NICE": Strategy(
         abbrev="NICE",
@@ -55,18 +40,6 @@ STRATEGIES: Dict[str, Strategy] = {
         listing_urls=["https://www.who.int/publications/who-guidelines"],
         doc_pattern=r"who\.int/publications/i/item/",
     ),
-    "NHMRC": Strategy(
-        abbrev="NHMRC",
-        listing_urls=["https://www.nhmrc.gov.au/health-advice/all-guidelines"],
-        doc_pattern=r"nhmrc\.gov\.au/.+guidelines?",
-    ),
-    "CDC": Strategy(
-        abbrev="CDC",
-        listing_urls=["https://www.cdc.gov/mmwr/rr_archives.html"],
-        doc_pattern=r"cdc\.gov/(mmwr|.+/guidelines?)",
-    ),
-
-    # --- remaining A-tier issuers ---------------------------------------
     "USPSTF": Strategy(
         abbrev="USPSTF",
         listing_urls=[
@@ -80,17 +53,41 @@ STRATEGIES: Dict[str, Strategy] = {
         doc_pattern=r"nccn\.org/guidelines/guidelines-detail",
         identifier_pattern=r"[?&]id=(\d+)",
     ),
-    "Cochrane": Strategy(
-        abbrev="Cochrane",
-        listing_urls=["https://www.cochranelibrary.com/cdsr/reviews/topics"],
-        doc_pattern=r"cochranelibrary\.com/cdsr/doi/10\.1002/",
-        identifier_pattern=r"(10\.1002/14651858\.[A-Za-z0-9.]+)",
+    "CDC": Strategy(
+        abbrev="CDC",
+        listing_urls=["https://www.cdc.gov/mmwr/rr_archives.html"],
+        # Captures both old relative preview slugs and modernized server-relative volume structures
+        doc_pattern=r"(/mmwr/preview/mmwrhtml/rr|/mmwr/volumes/\d+/rr/|mmwr.+guideline)",
     ),
     "SIGN": Strategy(
         abbrev="SIGN",
         sitemap_urls=["https://www.sign.ac.uk/sitemap.xml"],
         listing_urls=["https://www.sign.ac.uk/our-guidelines/"],
-        doc_pattern=r"sign\.ac\.uk/our-guidelines/[a-z0-9-]+/?$",
+        # Broadened to capture direct static download keys and lowercase/uppercase folder routes
+        doc_pattern=r"sign\.ac\.uk/(our-guidelines|assets)/[A-Za-z0-9-]+",
+    ),
+    "Cochrane": Strategy(
+        abbrev="Cochrane",
+        # Pivot to using their clean review feed aggregator for high static volume output
+        listing_urls=["https://www.cochranelibrary.com/api/rss/reviews/en/CRG-HEART.xml"],
+        doc_pattern=r"cochranelibrary\.com/cdsr/doi/",
+        identifier_pattern=r"doi/(10\.1002/[A-Za-z0-9.]+)",
+    ),
+    "NHMRC": Strategy(
+        abbrev="NHMRC",
+        listing_urls=["https://www.nhmrc.gov.au/health-advice/all-guidelines"],
+        # Accommodates paths tracking dynamic redirect items or deep PDF attachments
+        doc_pattern=r"nhmrc\.gov\.au/(about-us/publications|health-advice│file)/.+",
+    ),
+    "AHA/ACC": Strategy(
+        abbrev="AHA/ACC",
+        listing_urls=[
+            "https://www.acc.org/Guidelines",
+            "https://professional.heart.org/en/guidelines-and-statements",
+        ],
+        # Expands search pattern to catch absolute and relative link components across both bodies
+        doc_pattern=r"(/guidelines/|ahajournals\.org/doi/|jacc\.org/doi/)",
+        identifier_pattern=r"doi/(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)",
     ),
     "eTG": Strategy(
         abbrev="eTG",
@@ -104,25 +101,16 @@ STRATEGIES: Dict[str, Strategy] = {
         ],
         doc_pattern=r"escardio\.org/Guidelines/Clinical-Practice-Guidelines/",
     ),
-    "AHA/ACC": Strategy(
-        abbrev="AHA/ACC",
-        listing_urls=[
-            "https://www.acc.org/Guidelines",
-            "https://professional.heart.org/en/guidelines-and-statements",
-        ],
-        doc_pattern=r"(acc\.org/guidelines/|ahajournals\.org/doi/10\.1161/)",
-        identifier_pattern=r"(10\.1161/[A-Za-z0-9.]+)",
-    ),
     "ACP": Strategy(
         abbrev="ACP",
         listing_urls=["https://www.acponline.org/clinical-information/guidelines"],
         doc_pattern=r"(acponline\.org/clinical-information/guidelines/|acpjournals\.org/doi/10\.7326/)",
-        identifier_pattern=r"(10\.7326/[A-Za-z0-9.-]+)",
+        identifier_pattern=r"/doi/(10\.7326/[A-Za-z0-9.-]+)",
     ),
     "IDSA": Strategy(
         abbrev="IDSA",
         listing_urls=["https://www.idsociety.org/practice-guideline/practice-guidelines/"],
-        doc_pattern=r"idsociety\.org/practice-guideline/[a-z0-9-]+/?$",
+        doc_pattern=r"idsociety\.org/(practice-guideline|academic/idsa)/[a-z0-9-]+",
     ),
     "CTFPHC": Strategy(
         abbrev="CTFPHC",
@@ -150,7 +138,6 @@ def _identifier_from_url(url: str, strat: Strategy) -> Optional[str]:
 
 def _build_record(url: str, meta: dict, issuer: Issuer, strat: Strategy,
                   crawl_ts: int) -> GuidelineRecord:
-    """Assemble a GuidelineRecord from a fetched document page (scope §13.5)."""
     title = (meta.get("title") or "").strip()
     year = None
     if meta.get("year"):
@@ -176,8 +163,9 @@ def _build_record(url: str, meta: dict, issuer: Issuer, strat: Strategy,
     )
 
 
-def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler) -> List[str]:
-    """Find candidate document URLs for an issuer (sitemap first, then listings)."""
+def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler, 
+                      diagnostics: Optional[Dict[str, Any]] = None) -> List[str]:
+    """Find candidate document URLs for an issuer (sitemap index expansion first, then listings)."""
     found: List[str] = []
     seen = set()
     rx = re.compile(strat.doc_pattern, re.IGNORECASE) if strat.doc_pattern else None
@@ -187,69 +175,192 @@ def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler) -> List[str]:
             seen.add(u)
             found.append(u)
 
-    for sm_url in strat.sitemap_urls:
-        res = crawler.fetch(sm_url)
-        if res.ok:
-            for loc in parse_sitemap(res.text):
-                keep(loc)
-        if len(found) >= strat.max_docs:
-            return found[: strat.max_docs]
+    # Change 1: Queue processing tracking for deep recursive sitemap loops
+    sitemap_queue = list(strat.sitemap_urls)
+    processed_sitemaps = set()
 
-    for listing in strat.listing_urls:
-        res = crawler.fetch(listing)
+    while sitemap_queue and len(found) < strat.max_docs:
+        sm_url = sitemap_queue.pop(0)
+        if sm_url in processed_sitemaps:
+            continue
+        processed_sitemaps.add(sm_url)
+
+        res = crawler.fetch(sm_url)
+        sm_diag = {
+            "status_code": res.status,
+            "found": res.ok,
+            "error": res.error,
+            "robot_check_failed": (res.error == "disallowed by robots.txt"),
+            "is_index_file": False,
+            "urls_extracted": 0
+        }
+        
         if res.ok:
-            for link in extract_links(res.text, base_url=listing,
-                                      pattern=strat.doc_pattern):
-                keep(link["href"])
-        if len(found) >= strat.max_docs:
-            break
+            is_index = "<sitemapindex" in res.text or ("<sitemap" in res.text and not "<url" in res.text)
+            sm_diag["is_index_file"] = is_index
+            extracted_urls = parse_sitemap(res.text)
+            sm_diag["urls_extracted"] = len(extracted_urls)
+            
+            if is_index:
+                # Enqueue sub-sitemaps for parsing inside next loops
+                for sub_url in extracted_urls:
+                    if sub_url.endswith(".xml") or "sitemap" in sub_url.lower():
+                        sitemap_queue.append(sub_url)
+            else:
+                # Leaf urlset node; apply regular matching
+                before_count = len(found)
+                for loc in extracted_urls:
+                    keep(loc)
+                sm_diag["guidelines_located"] = len(found) - before_count
+                
+        if diagnostics is not None:
+            if "sitemaps" not in diagnostics:
+                diagnostics["sitemaps"] = {}
+            diagnostics["sitemaps"][sm_url] = sm_diag
+
+    # Fall back to index pages if sitemaps did not satisfy capacity requirements
+    if len(found) < strat.max_docs:
+        for listing in strat.listing_urls:
+            res = crawler.fetch(listing)
+            list_diag = {
+                "status_code": res.status,
+                "found": res.ok,
+                "error": res.error,
+                "robot_check_failed": (res.error == "disallowed by robots.txt"),
+                "links_found": 0
+            }
+            
+            if res.ok:
+                extracted_links = extract_links(res.text, base_url=listing, pattern=strat.doc_pattern)
+                list_diag["links_found"] = len(extracted_links)
+                before_count = len(found)
+                for link in extracted_links:
+                    keep(link["href"])
+                list_diag["guidelines_located"] = len(found) - before_count
+                
+            if diagnostics is not None:
+                if "listings" not in diagnostics:
+                    diagnostics["listings"] = {}
+                diagnostics["listings"][listing] = list_diag
+
+            if len(found) >= strat.max_docs:
+                break
+                
     return found[: strat.max_docs]
 
 
 def crawl_issuer(abbrev: str, *, crawler: Optional[PoliteCrawler] = None,
                  registry: Optional[Registry] = None,
-                 crawl_ts: Optional[int] = None) -> List[GuidelineRecord]:
+                 crawl_ts: Optional[int] = None,
+                 diagnostics: Optional[Dict[str, Any]] = None) -> List[GuidelineRecord]:
     """Crawl one issuer into GuidelineRecords. Never raises; returns [] on trouble."""
-    import time
-
     registry = registry or load_registry()
     strat = get_strategy(abbrev)
     issuer = registry.by_abbrev(abbrev)
+    
+    if diagnostics is not None:
+        diagnostics.clear()
+        diagnostics.update({
+            "issuer_abbrev": abbrev,
+            "strategy_found": strat is not None,
+            "issuer_registered": issuer is not None,
+            "sitemaps": {},
+            "listings": {},
+            "documents": {
+                "total_discovered": 0,
+                "successfully_fetched": 0,
+                "successfully_parsed": 0,
+                "failed_fetches": [],
+                "failed_parses": []
+            }
+        })
+
     if strat is None or issuer is None:
         return []
+        
     crawler = crawler or PoliteCrawler()
-    ts = crawl_ts if crawl_ts is not None else int(time.time())
 
+    if issuer is not None:
+        crawler.respect_robots = issuer.robots_respect
+        
+    ts = crawl_ts if crawl_ts is not None else int(time.time())
     records: List[GuidelineRecord] = []
+    
     try:
-        urls = discover_doc_urls(strat, crawler)
-    except Exception:
+        urls = discover_doc_urls(strat, crawler, diagnostics=diagnostics)
+    except Exception as exc:
+        if diagnostics is not None:
+            diagnostics["discovery_exception"] = f"{type(exc).__name__}: {exc}"
         return []
+        
+    if diagnostics is not None:
+        diagnostics["documents"]["total_discovered"] = len(urls)
+
     for url in urls:
         try:
             res = crawler.fetch(url)
             if not res.ok:
+                if diagnostics is not None:
+                    diagnostics["documents"]["failed_fetches"].append({
+                        "url": url,
+                        "status_code": res.status,
+                        "error": res.error,
+                        "robot_check_failed": (res.error == "disallowed by robots.txt")
+                    })
                 continue
-            meta = extract_page_meta(res.text)
+                
+            if diagnostics is not None:
+                diagnostics["documents"]["successfully_fetched"] += 1
+                
+            # Change 2: Pass down URL trace reference to populate fallbacks for binaries/PDFs
+            meta = extract_page_meta(res.text, url=url)
             if not meta.get("title"):
+                if diagnostics is not None:
+                    diagnostics["documents"]["failed_parses"].append({
+                        "url": url,
+                        "reason": "Missing or empty HTML title attribute tag"
+                    })
                 continue
+                
             records.append(_build_record(url, meta, issuer, strat, ts))
-        except Exception:
+            if diagnostics is not None:
+                diagnostics["documents"]["successfully_parsed"] += 1
+                
+        except Exception as exc:
+            if diagnostics is not None:
+                diagnostics["documents"]["failed_parses"].append({
+                    "url": url,
+                    "reason": f"Unhandled parsing Exception: {type(exc).__name__}: {exc}"
+                })
             continue
+            
     return records
 
 
 def crawl_issuers(abbrevs: Optional[List[str]] = None, *,
                   crawler: Optional[PoliteCrawler] = None,
-                  registry: Optional[Registry] = None) -> List[GuidelineRecord]:
+                  registry: Optional[Registry] = None,
+                  global_diagnostics: Optional[Dict[str, Any]] = None) -> List[GuidelineRecord]:
     """Crawl several issuers (default: all that have a Strategy)."""
     registry = registry or load_registry()
     crawler = crawler or PoliteCrawler()
+    
     if abbrevs:
         targets = [a.upper() for a in abbrevs]
     else:
         targets = list(STRATEGIES.keys())
+        
+    if global_diagnostics is not None:
+        global_diagnostics.clear()
+        global_diagnostics["issuers_tracked"] = {}
+        
     out: List[GuidelineRecord] = []
     for ab in targets:
-        out.extend(crawl_issuer(ab, crawler=crawler, registry=registry))
+        issuer_diag = {}
+        records = crawl_issuer(ab, crawler=crawler, registry=registry, diagnostics=issuer_diag)
+        out.extend(records)
+        
+        if global_diagnostics is not None:
+            global_diagnostics["issuers_tracked"][ab] = issuer_diag
+            
     return out

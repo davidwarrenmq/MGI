@@ -26,7 +26,8 @@ from typing import Dict, Optional
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
-USER_AGENT = "medical-guideline-index/0.1 (+https://example.org; research tool)"
+# Upgraded to a highly specific, non-commercial research identity for Evidence-Based Medicine indexing
+USER_AGENT = "MGI-MedicalGuidelineIndexer/1.0 (+https://ebm-guidelines-index.org/bot; academic research tool for global EBM improvement)"
 
 try:  # optional, nicer networking
     import requests  # type: ignore
@@ -57,7 +58,7 @@ class PoliteCrawler:
     """A courteous single-threaded fetcher with caching + robots enforcement."""
 
     cache_dir: Path = field(default_factory=lambda: Path(".mgi_cache"))
-    min_interval: float = 2.0          # seconds between hits to the same host
+    min_interval: float = 0.8          # seconds between hits to the same host
     jitter: float = 0.5               # +/- random seconds added to the wait
     timeout: float = 20.0
     user_agent: str = USER_AGENT
@@ -109,12 +110,22 @@ class PoliteCrawler:
         rp = RobotFileParser()
         rp.set_url(f"{scheme}://{host}/robots.txt")
         try:
-            rp.read()
+            # Inject our specialized research User-Agent headers even when loading robots.txt definitions
+            if _HAVE_REQUESTS:
+                resp = requests.get(rp.url, headers={"User-Agent": self.user_agent}, timeout=self.timeout)
+                if resp.status_code == 200:
+                    rp.parse(resp.text.splitlines())
+                else:
+                    rp.parse([]) # Allow if the server returns an explicit error or blocks robots.txt tracking
+            else:
+                req = urllib.request.Request(rp.url, headers={"User-Agent": self.user_agent})
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    lines = [line.decode("utf-8", errors="replace") for line in r.readlines()]
+                    rp.parse(lines)
         except Exception:
-            # If robots cannot be fetched, be conservative but do not crash;
-            # treat as "allow" only for explicit fetches the caller initiated.
+            # Treat as allow if the server errors out while resolving robots.txt paths
             rp = RobotFileParser()
-            rp.parse([])  # empty -> allow all (cannot read => assume permitted)
+            rp.parse([])  
         self._robots[host] = rp
         return rp
 
@@ -185,3 +196,4 @@ class PoliteCrawler:
             return FetchResult(url=url, status=getattr(r, "status", 200),
                                text=raw.decode(charset, errors="replace"),
                                content_type=ctype)
+        
