@@ -16,6 +16,7 @@ from .sitemap import parse_sitemap, extract_links, extract_page_meta
 @dataclass
 class Strategy:
     """Parse rules for one issuer (keyed by abbrev)."""
+
     abbrev: str
     listing_urls: List[str] = field(default_factory=list)
     sitemap_urls: List[str] = field(default_factory=list)
@@ -24,21 +25,46 @@ class Strategy:
     default_doc_type: str = "guideline"
     topics: List[str] = field(default_factory=list)
     max_docs: int = 200
+    index_from_listing_meta: bool = False      
+    
+    # Dynamic Paging Support Parameters
+    paging_param: str = ""                     # URL parameter string to inject, e.g., "page"
+    stop_pattern: str = ""                     # Regex layout pattern indicating an empty page/no results
 
 
 STRATEGIES: Dict[str, Strategy] = {
-    "NICE": Strategy(
+   "NICE": Strategy(
         abbrev="NICE",
         sitemap_urls=["https://www.nice.org.uk/sitemap.xml"],
         listing_urls=["https://www.nice.org.uk/guidance/published?type=ng,cg"],
         doc_pattern=r"nice\.org\.uk/guidance/(ng|cg|ta)\d+",
         identifier_pattern=r"/guidance/((?:NG|CG|TA)\d+)",
     ),
-    "WHO": Strategy(
+   "WHO": Strategy(
         abbrev="WHO",
-        sitemap_urls=["https://www.who.int/sitemap.xml"],
-        listing_urls=["https://www.who.int/publications/who-guidelines"],
+        # 1. Provide the direct absolute sub-sitemaps bypassing the top shell index completely
+        sitemap_urls=[
+            "https://www.who.int/SiteMaps/sitemap_static1.xml",
+            "https://www.who.int/SiteMaps/sitemap_static2.xml",
+            "https://www.who.int/SiteMaps/sitemap_static3.xml",
+        ],
+        listing_urls=[],
+        # 2. Broaden pattern constraint to catch absolute and protocol variations cleanly
         doc_pattern=r"who\.int/publications/i/item/",
+        identifier_pattern=r"/publications/i/item/([A-Za-z0-9.-]+)",
+        max_docs=200, 
+        index_from_listing_meta=False,
+    ),
+    "NHMRC": Strategy(
+        abbrev="NHMRC",
+        listing_urls=["https://www.nhmrc.gov.au/health-advice/all-guidelines"],
+        doc_pattern=r"nhmrc\.gov\.au/(about-us/publications|health-advice|file)/.+",
+    ),
+    "CDC": Strategy(
+        abbrev="CDC",
+        listing_urls=["https://www.cdc.gov/mmwr/rr_archives.html"],
+        # Simplified: Removes leading forward slash restrictions to support normalized absolute matching
+        doc_pattern=r"mmwr/(preview/mmwrhtml/rr|volumes/\d+/rr/|.+guideline)",
     ),
     "USPSTF": Strategy(
         abbrev="USPSTF",
@@ -53,41 +79,17 @@ STRATEGIES: Dict[str, Strategy] = {
         doc_pattern=r"nccn\.org/guidelines/guidelines-detail",
         identifier_pattern=r"[?&]id=(\d+)",
     ),
-    "CDC": Strategy(
-        abbrev="CDC",
-        listing_urls=["https://www.cdc.gov/mmwr/rr_archives.html"],
-        # Captures both old relative preview slugs and modernized server-relative volume structures
-        doc_pattern=r"(/mmwr/preview/mmwrhtml/rr|/mmwr/volumes/\d+/rr/|mmwr.+guideline)",
+    "Cochrane": Strategy(
+        abbrev="Cochrane",
+        listing_urls=["https://www.cochranelibrary.com/api/rss/reviews/en/CRG-HEART.xml"],
+        doc_pattern=r"cochranelibrary\.com/cdsr/doi/",
+        identifier_pattern=r"doi/(10\.1002/[A-Za-z0-9.]+)",
     ),
     "SIGN": Strategy(
         abbrev="SIGN",
         sitemap_urls=["https://www.sign.ac.uk/sitemap.xml"],
         listing_urls=["https://www.sign.ac.uk/our-guidelines/"],
-        # Broadened to capture direct static download keys and lowercase/uppercase folder routes
         doc_pattern=r"sign\.ac\.uk/(our-guidelines|assets)/[A-Za-z0-9-]+",
-    ),
-    "Cochrane": Strategy(
-        abbrev="Cochrane",
-        # Pivot to using their clean review feed aggregator for high static volume output
-        listing_urls=["https://www.cochranelibrary.com/api/rss/reviews/en/CRG-HEART.xml"],
-        doc_pattern=r"cochranelibrary\.com/cdsr/doi/",
-        identifier_pattern=r"doi/(10\.1002/[A-Za-z0-9.]+)",
-    ),
-    "NHMRC": Strategy(
-        abbrev="NHMRC",
-        listing_urls=["https://www.nhmrc.gov.au/health-advice/all-guidelines"],
-        # Accommodates paths tracking dynamic redirect items or deep PDF attachments
-        doc_pattern=r"nhmrc\.gov\.au/(about-us/publications|health-advice│file)/.+",
-    ),
-    "AHA/ACC": Strategy(
-        abbrev="AHA/ACC",
-        listing_urls=[
-            "https://www.acc.org/Guidelines",
-            "https://professional.heart.org/en/guidelines-and-statements",
-        ],
-        # Expands search pattern to catch absolute and relative link components across both bodies
-        doc_pattern=r"(/guidelines/|ahajournals\.org/doi/|jacc\.org/doi/)",
-        identifier_pattern=r"doi/(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)",
     ),
     "eTG": Strategy(
         abbrev="eTG",
@@ -99,13 +101,25 @@ STRATEGIES: Dict[str, Strategy] = {
         listing_urls=[
             "https://www.escardio.org/Guidelines/Clinical-Practice-Guidelines",
         ],
-        doc_pattern=r"escardio\.org/Guidelines/Clinical-Practice-Guidelines/",
+        doc_pattern=r"escardio\.org/Guidelines/",
+        index_from_listing_meta=True, # Collects overview anchors directly to bypass dynamic elements
+    ),
+    "AHA/ACC": Strategy(
+        abbrev="AHA/ACC",
+        listing_urls=[
+            "https://www.acc.org/Guidelines",
+            "https://professional.heart.org/en/guidelines-and-statements",
+        ],
+        # Removed root front slashes for clean absolute URL searching
+        doc_pattern=r"(guidelines/|ahajournals\.org/doi/|jacc\.org/doi/)",
+        identifier_pattern=r"doi/(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)",
     ),
     "ACP": Strategy(
         abbrev="ACP",
         listing_urls=["https://www.acponline.org/clinical-information/guidelines"],
         doc_pattern=r"(acponline\.org/clinical-information/guidelines/|acpjournals\.org/doi/10\.7326/)",
         identifier_pattern=r"/doi/(10\.7326/[A-Za-z0-9.-]+)",
+        index_from_listing_meta=True,
     ),
     "IDSA": Strategy(
         abbrev="IDSA",
@@ -162,6 +176,7 @@ def _build_record(url: str, meta: dict, issuer: Issuer, strat: Strategy,
         raw_meta={"discovered_via": "crawl"},
     )
 
+from urllib.parse import urljoin
 
 def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler, 
                       diagnostics: Optional[Dict[str, Any]] = None) -> List[str]:
@@ -169,13 +184,14 @@ def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler,
     found: List[str] = []
     seen = set()
     rx = re.compile(strat.doc_pattern, re.IGNORECASE) if strat.doc_pattern else None
+    stop_rx = re.compile(strat.stop_pattern, re.IGNORECASE) if strat.stop_pattern else None
 
     def keep(u: str) -> None:
         if u and u not in seen and (rx is None or rx.search(u)):
             seen.add(u)
             found.append(u)
 
-    # Change 1: Queue processing tracking for deep recursive sitemap loops
+    # 1. Ingest Sitemaps via Recursive Sitemap Index expansion
     sitemap_queue = list(strat.sitemap_urls)
     processed_sitemaps = set()
 
@@ -202,12 +218,10 @@ def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler,
             sm_diag["urls_extracted"] = len(extracted_urls)
             
             if is_index:
-                # Enqueue sub-sitemaps for parsing inside next loops
                 for sub_url in extracted_urls:
                     if sub_url.endswith(".xml") or "sitemap" in sub_url.lower():
                         sitemap_queue.append(sub_url)
             else:
-                # Leaf urlset node; apply regular matching
                 before_count = len(found)
                 for loc in extracted_urls:
                     keep(loc)
@@ -218,36 +232,73 @@ def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler,
                 diagnostics["sitemaps"] = {}
             diagnostics["sitemaps"][sm_url] = sm_diag
 
-    # Fall back to index pages if sitemaps did not satisfy capacity requirements
+    # 2. Fall back to index pages if sitemaps did not satisfy capacity requirements
     if len(found) < strat.max_docs:
-        for listing in strat.listing_urls:
-            res = crawler.fetch(listing)
-            list_diag = {
-                "status_code": res.status,
-                "found": res.ok,
-                "error": res.error,
-                "robot_check_failed": (res.error == "disallowed by robots.txt"),
-                "links_found": 0
-            }
+        for base_listing in strat.listing_urls:
+            target_url = base_listing
+            page_count = 1
             
-            if res.ok:
-                extracted_links = extract_links(res.text, base_url=listing, pattern=strat.doc_pattern)
-                list_diag["links_found"] = len(extracted_links)
+            while target_url and len(found) < strat.max_docs:
+                res = crawler.fetch(target_url)
+                list_diag = {
+                    "status_code": res.status,
+                    "found": res.ok,
+                    "error": res.error,
+                    "robot_check_failed": (res.error == "disallowed by robots.txt"),
+                    "links_found": 0,
+                    "page_index": page_count
+                }
+                
+                if not res.ok or (stop_rx and stop_rx.search(res.text)):
+                    if diagnostics is not None and "listings" in diagnostics:
+                        diagnostics["listings"][target_url] = list_diag
+                    break
+
                 before_count = len(found)
-                for link in extracted_links:
-                    keep(link["href"])
+
+                # Parse RSS/Atom variants vs traditional standard HTML anchors
+                if "rss" in res.text[:200].lower() or "<rss" in res.text or "<feed" in res.text:
+                    rss_links = re.findall(r"<link>\s*([^<\s]+)\s*</link>", res.text)
+                    rss_links.extend(re.findall(r'<link[^>]+href=["\']([^"\']+)["\']', res.text))
+                    list_diag["links_found"] = len(rss_links)
+                    for r_link in rss_links:
+                        keep(r_link.strip())
+                    next_page_url = None
+                else:
+                    extracted_links = extract_links(res.text, base_url=target_url, pattern=strat.doc_pattern)
+                    list_diag["links_found"] = len(extracted_links)
+                    for link in extracted_links:
+                        keep(link["href"])
+                    
+                    # Target query parameter elements inside layout anchors
+                    all_anchors = extract_links(res.text, base_url=target_url)
+                    next_page_url = None
+                    target_param_match = f"page={page_count + 1}"
+                    
+                    for anchor in all_anchors:
+                        href_lower = anchor["href"].lower()
+                        if target_param_match in href_lower or (strat.paging_param and f"{strat.paging_param}={page_count + 1}" in href_lower):
+                            # Fix: Ensure relative paths are forced absolute against current host domain base URL
+                            next_page_url = urljoin(target_url, anchor["href"])
+                            break
+                        
                 list_diag["guidelines_located"] = len(found) - before_count
                 
-            if diagnostics is not None:
-                if "listings" not in diagnostics:
-                    diagnostics["listings"] = {}
-                diagnostics["listings"][listing] = list_diag
+                if diagnostics is not None:
+                    if "listings" not in diagnostics:
+                        diagnostics["listings"] = {}
+                    diagnostics["listings"][target_url] = list_diag
 
+                if len(found) == before_count or not next_page_url:
+                    break
+
+                target_url = next_page_url
+                page_count += 1
+                
             if len(found) >= strat.max_docs:
                 break
                 
     return found[: strat.max_docs]
-
 
 def crawl_issuer(abbrev: str, *, crawler: Optional[PoliteCrawler] = None,
                  registry: Optional[Registry] = None,
@@ -279,13 +330,64 @@ def crawl_issuer(abbrev: str, *, crawler: Optional[PoliteCrawler] = None,
         return []
         
     crawler = crawler or PoliteCrawler()
-
-    if issuer is not None:
-        crawler.respect_robots = issuer.robots_respect
-        
+    crawler.respect_robots = issuer.robots_respect
+    
     ts = crawl_ts if crawl_ts is not None else int(time.time())
     records: List[GuidelineRecord] = []
+    stop_rx = re.compile(strat.stop_pattern, re.IGNORECASE) if strat.stop_pattern else None
     
+    # Shortcut Option: Index directly using layout pagination variables without secondary fetches
+    if getattr(strat, "index_from_listing_meta", False):
+        for base_listing in strat.listing_urls:
+            target_url = base_listing
+            page_count = 1
+            
+            while target_url and len(records) < strat.max_docs:
+                res = crawler.fetch(target_url)
+                if not res.ok or (stop_rx and stop_rx.search(res.text)):
+                    break
+
+                anchors = extract_links(res.text, base_url=target_url, pattern=strat.doc_pattern)
+                if not anchors:
+                    break
+
+                count_before_page = len(records)
+
+                if diagnostics is not None:
+                    diagnostics["documents"]["total_discovered"] += len(anchors)
+
+                for a in anchors:
+                    meta = {"title": a["text"], "year": None, "doi": None}
+                    rec_url = a["href"]
+                    if rec_url not in [r.url for r in records]:
+                        records.append(_build_record(rec_url, meta, issuer, strat, ts))
+                        if diagnostics is not None:
+                            diagnostics["documents"]["successfully_fetched"] += 1
+                            diagnostics["documents"]["successfully_parsed"] += 1
+                    if len(records) >= strat.max_docs:
+                        break
+                
+                # Scan ahead to locate pagination links safely
+                all_anchors = extract_links(res.text, base_url=target_url)
+                next_page_url = None
+                target_param_match = f"page={page_count + 1}"
+                
+                for anchor in all_anchors:
+                    href_lower = anchor["href"].lower()
+                    if target_param_match in href_lower or (strat.paging_param and f"{strat.paging_param}={page_count + 1}" in href_lower):
+                        # Fix: Forces normalization back to absolute form
+                        next_page_url = urljoin(target_url, anchor["href"])
+                        break
+                        
+                if len(records) == count_before_page or not next_page_url:
+                    break
+
+                target_url = next_page_url
+                page_count += 1
+                
+        return records[: strat.max_docs]
+    
+    # Standard Workflow: Discover URLs then request specific child metadata details
     try:
         urls = discover_doc_urls(strat, crawler, diagnostics=diagnostics)
     except Exception as exc:
@@ -312,7 +414,6 @@ def crawl_issuer(abbrev: str, *, crawler: Optional[PoliteCrawler] = None,
             if diagnostics is not None:
                 diagnostics["documents"]["successfully_fetched"] += 1
                 
-            # Change 2: Pass down URL trace reference to populate fallbacks for binaries/PDFs
             meta = extract_page_meta(res.text, url=url)
             if not meta.get("title"):
                 if diagnostics is not None:
@@ -335,7 +436,6 @@ def crawl_issuer(abbrev: str, *, crawler: Optional[PoliteCrawler] = None,
             continue
             
     return records
-
 
 def crawl_issuers(abbrevs: Optional[List[str]] = None, *,
                   crawler: Optional[PoliteCrawler] = None,
