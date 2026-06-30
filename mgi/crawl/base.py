@@ -20,6 +20,7 @@ import random
 import time
 import urllib.error
 import urllib.request
+import gzip  # Added for safe standard-library compression handling
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional
@@ -110,20 +111,18 @@ class PoliteCrawler:
         rp = RobotFileParser()
         rp.set_url(f"{scheme}://{host}/robots.txt")
         try:
-            # Inject our specialized research User-Agent headers even when loading robots.txt definitions
             if _HAVE_REQUESTS:
                 resp = requests.get(rp.url, headers={"User-Agent": self.user_agent}, timeout=self.timeout)
                 if resp.status_code == 200:
                     rp.parse(resp.text.splitlines())
                 else:
-                    rp.parse([]) # Allow if the server returns an explicit error or blocks robots.txt tracking
+                    rp.parse([])
             else:
                 req = urllib.request.Request(rp.url, headers={"User-Agent": self.user_agent})
                 with urllib.request.urlopen(req, timeout=self.timeout) as r:
                     lines = [line.decode("utf-8", errors="replace") for line in r.readlines()]
                     rp.parse(lines)
         except Exception:
-            # Treat as allow if the server errors out while resolving robots.txt paths
             rp = RobotFileParser()
             rp.parse([])  
         self._robots[host] = rp
@@ -171,7 +170,7 @@ class PoliteCrawler:
                 res = self._fetch_requests(url)
             else:
                 res = self._fetch_urllib(url)
-        except Exception as exc:  # network errors must not crash the crawl
+        except Exception as exc:  
             return FetchResult(url=url, status=0, error=f"{type(exc).__name__}: {exc}")
 
         if use_cache:
@@ -183,17 +182,32 @@ class PoliteCrawler:
                             timeout=self.timeout, stream=True)
         ctype = resp.headers.get("Content-Type", "")
         body = resp.content[: self.max_bytes]
+        
+        # Unpack binary gzip collections transparently
+        if url.lower().endswith(".gz") or body.startswith(b'\x1f\x8b'):
+            try:
+                body = gzip.decompress(body)
+            except Exception:
+                pass
+                
         text = body.decode(resp.encoding or "utf-8", errors="replace")
         return FetchResult(url=url, status=resp.status_code, text=text,
                            content_type=ctype)
 
     def _fetch_urllib(self, url: str) -> FetchResult:
         req = urllib.request.Request(url, headers={"User-Agent": self.user_agent})
-        with urllib.request.urlopen(req, timeout=self.timeout) as r:  # nosec - polite fetch
+        with urllib.request.urlopen(req, timeout=self.timeout) as r:  
             ctype = r.headers.get("Content-Type", "")
             raw = r.read(self.max_bytes)
+            
+            # Unpack binary gzip collections transparently
+            if url.lower().endswith(".gz") or raw.startswith(b'\x1f\x8b'):
+                try:
+                    raw = gzip.decompress(raw)
+                except Exception:
+                    pass
+                    
             charset = r.headers.get_content_charset() or "utf-8"
             return FetchResult(url=url, status=getattr(r, "status", 200),
                                text=raw.decode(charset, errors="replace"),
                                content_type=ctype)
-        

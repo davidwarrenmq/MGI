@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import time
+import json  # Native client-side backend API intercept
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
@@ -31,6 +32,47 @@ class Strategy:
     paging_param: str = ""                     # URL parameter string to inject, e.g., "page"
     stop_pattern: str = ""                     # Regex layout pattern indicating an empty page/no results
 
+    # JSON REST API Intercept Configuration
+    json_extraction_hook: Optional[Callable[[Dict[str, Any]], List[Dict[str, str]]]] = None
+
+
+def _extract_who_json_api(payload: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Intercepts and maps the raw web service arrays returned by the WHO Sitefinity engine."""
+    results = []
+    _YEAR_RX = re.compile(r"\b((?:19|20)\d{2})\b")
+    
+    items = payload.get("value", []) or payload.get("items", [])
+    if not items:
+        items = payload.get("_embedded", {}).get("searchResult", {}).get("_embedded", {}).get("objects", [])
+        
+    for entry in items:
+        item_data = entry.get("_embedded", {}).get("indexableObject", {}) or entry
+        
+        title = item_data.get("Title") or item_data.get("title") or item_data.get("name")
+        url_path = item_data.get("ItemDefaultUrl") or item_data.get("UrlName") or item_data.get("handle") or item_data.get("uuid")
+        
+        # Extract the year from API date properties, or fallback to searching the Title string
+        pub_date = str(item_data.get("PublicationDate") or item_data.get("ReleaseDate") or "")
+        date_match = _YEAR_RX.search(pub_date) or _YEAR_RX.search(str(title))
+        extracted_year = date_match.group(1) if date_match else None
+        
+        if title and url_path:
+            url_path_str = str(url_path).strip()
+            
+            if not url_path_str.startswith("/publications/"):
+                if url_path_str.upper().startswith("B") or url_path_str.startswith("governing-bodies"):
+                    url_path_str = f"/publications/b/{url_path_str}"
+                else:
+                    url_path_str = f"/publications/i/item/{url_path_str}"
+                    
+            href = urljoin("https://www.who.int", url_path_str)
+            results.append({
+                "href": href,
+                "text": str(title).strip(),
+                "year": extracted_year  # <-- Pass the year along with the text node
+            })
+    return results
+
 
 STRATEGIES: Dict[str, Strategy] = {
    "NICE": Strategy(
@@ -42,18 +84,17 @@ STRATEGIES: Dict[str, Strategy] = {
     ),
    "WHO": Strategy(
         abbrev="WHO",
-        # 1. Provide the direct absolute sub-sitemaps bypassing the top shell index completely
-        sitemap_urls=[
-            "https://www.who.int/SiteMaps/sitemap_static1.xml",
-            "https://www.who.int/SiteMaps/sitemap_static2.xml",
-            "https://www.who.int/SiteMaps/sitemap_static3.xml",
+        sitemap_urls=[],
+        # Targets the active OData service catalog directly to bypass client-side render limits
+        listing_urls=[
+            "https://www.who.int/api/news/publications?$filter=contains(Title,%20%27guideline%27)&$top=100&$count=true",
         ],
-        listing_urls=[],
-        # 2. Broaden pattern constraint to catch absolute and protocol variations cleanly
-        doc_pattern=r"who\.int/publications/i/item/",
-        identifier_pattern=r"/publications/i/item/([A-Za-z0-9.-]+)",
-        max_docs=200, 
-        index_from_listing_meta=False,
+        doc_pattern=r"who\.int/publications/",
+        identifier_pattern=r"/publications/(?:i/item|b)/([A-Za-z0-9.-]+)",
+        index_from_listing_meta=True, 
+        max_docs=1000,
+        paging_param="$skip",  
+        json_extraction_hook=_extract_who_json_api
     ),
     "NHMRC": Strategy(
         abbrev="NHMRC",
@@ -63,7 +104,6 @@ STRATEGIES: Dict[str, Strategy] = {
     "CDC": Strategy(
         abbrev="CDC",
         listing_urls=["https://www.cdc.gov/mmwr/rr_archives.html"],
-        # Simplified: Removes leading forward slash restrictions to support normalized absolute matching
         doc_pattern=r"mmwr/(preview/mmwrhtml/rr|volumes/\d+/rr/|.+guideline)",
     ),
     "USPSTF": Strategy(
@@ -102,7 +142,7 @@ STRATEGIES: Dict[str, Strategy] = {
             "https://www.escardio.org/Guidelines/Clinical-Practice-Guidelines",
         ],
         doc_pattern=r"escardio\.org/Guidelines/",
-        index_from_listing_meta=True, # Collects overview anchors directly to bypass dynamic elements
+        index_from_listing_meta=True,
     ),
     "AHA/ACC": Strategy(
         abbrev="AHA/ACC",
@@ -110,7 +150,6 @@ STRATEGIES: Dict[str, Strategy] = {
             "https://www.acc.org/Guidelines",
             "https://professional.heart.org/en/guidelines-and-statements",
         ],
-        # Removed root front slashes for clean absolute URL searching
         doc_pattern=r"(guidelines/|ahajournals\.org/doi/|jacc\.org/doi/)",
         identifier_pattern=r"doi/(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)",
     ),
@@ -176,6 +215,7 @@ def _build_record(url: str, meta: dict, issuer: Issuer, strat: Strategy,
         raw_meta={"discovered_via": "crawl"},
     )
 
+
 from urllib.parse import urljoin
 
 def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler, 
@@ -232,7 +272,7 @@ def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler,
                 diagnostics["sitemaps"] = {}
             diagnostics["sitemaps"][sm_url] = sm_diag
 
-    # 2. Fall back to index pages if sitemaps did not satisfy capacity requirements
+    # 2. Fall back to index pages / REST Web APIs if sitemaps did not satisfy boundaries
     if len(found) < strat.max_docs:
         for base_listing in strat.listing_urls:
             target_url = base_listing
@@ -256,21 +296,33 @@ def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler,
 
                 before_count = len(found)
 
-                # Parse RSS/Atom variants vs traditional standard HTML anchors
-                if "rss" in res.text[:200].lower() or "<rss" in res.text or "<feed" in res.text:
+                # Route A: The response is clean JSON from a downstream Web Service API
+                if res.content_type.startswith("application/json") or res.text.strip().startswith(("{", "[")):
+                    try:
+                        parsed_json = json.loads(res.text)
+                        if strat.json_extraction_hook:
+                            extracted_nodes = strat.json_extraction_hook(parsed_json)
+                            list_diag["links_found"] = len(extracted_nodes)
+                            for node in extracted_nodes:
+                                keep(node["href"])
+                    except Exception:
+                        pass
+                    next_page_url = None  
+                # Route B: The response is a standard RSS XML stream mapping layout
+                elif "rss" in res.text[:200].lower() or "<rss" in res.text or "<feed" in res.text:
                     rss_links = re.findall(r"<link>\s*([^<\s]+)\s*</link>", res.text)
                     rss_links.extend(re.findall(r'<link[^>]+href=["\']([^"\']+)["\']', res.text))
                     list_diag["links_found"] = len(rss_links)
                     for r_link in rss_links:
                         keep(r_link.strip())
                     next_page_url = None
+                # Route C: Traditional pre-rendered HTML layout anchor parsing
                 else:
                     extracted_links = extract_links(res.text, base_url=target_url, pattern=strat.doc_pattern)
                     list_diag["links_found"] = len(extracted_links)
                     for link in extracted_links:
                         keep(link["href"])
                     
-                    # Target query parameter elements inside layout anchors
                     all_anchors = extract_links(res.text, base_url=target_url)
                     next_page_url = None
                     target_param_match = f"page={page_count + 1}"
@@ -278,7 +330,6 @@ def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler,
                     for anchor in all_anchors:
                         href_lower = anchor["href"].lower()
                         if target_param_match in href_lower or (strat.paging_param and f"{strat.paging_param}={page_count + 1}" in href_lower):
-                            # Fix: Ensure relative paths are forced absolute against current host domain base URL
                             next_page_url = urljoin(target_url, anchor["href"])
                             break
                         
@@ -289,16 +340,25 @@ def discover_doc_urls(strat: Strategy, crawler: PoliteCrawler,
                         diagnostics["listings"] = {}
                     diagnostics["listings"][target_url] = list_diag
 
-                if len(found) == before_count or not next_page_url:
+                if len(found) == before_count or (not next_page_url and not strat.paging_param):
                     break
 
-                target_url = next_page_url
+                # Handle JSON parameter sequencing vs HTML link-crawling
+                if strat.paging_param and not next_page_url:
+                    separator = "&" if "?" in base_listing else "?"
+                    # Calculate incremental skip values (page_count * 100 items per pull)
+                    next_offset = page_count * 100
+                    target_url = f"{base_listing}{separator}{strat.paging_param}={next_offset}"
+                else:
+                    target_url = next_page_url
+                    
                 page_count += 1
                 
             if len(found) >= strat.max_docs:
                 break
                 
     return found[: strat.max_docs]
+
 
 def crawl_issuer(abbrev: str, *, crawler: Optional[PoliteCrawler] = None,
                  registry: Optional[Registry] = None,
@@ -336,7 +396,7 @@ def crawl_issuer(abbrev: str, *, crawler: Optional[PoliteCrawler] = None,
     records: List[GuidelineRecord] = []
     stop_rx = re.compile(strat.stop_pattern, re.IGNORECASE) if strat.stop_pattern else None
     
-    # Shortcut Option: Index directly using layout pagination variables without secondary fetches
+    # Shortcut Option: Index directly using listings layout metadata to avoid heavy detail lookups
     if getattr(strat, "index_from_listing_meta", False):
         for base_listing in strat.listing_urls:
             target_url = base_listing
@@ -347,42 +407,66 @@ def crawl_issuer(abbrev: str, *, crawler: Optional[PoliteCrawler] = None,
                 if not res.ok or (stop_rx and stop_rx.search(res.text)):
                     break
 
-                anchors = extract_links(res.text, base_url=target_url, pattern=strat.doc_pattern)
-                if not anchors:
-                    break
-
                 count_before_page = len(records)
-
-                if diagnostics is not None:
-                    diagnostics["documents"]["total_discovered"] += len(anchors)
-
-                for a in anchors:
-                    meta = {"title": a["text"], "year": None, "doi": None}
-                    rec_url = a["href"]
-                    if rec_url not in [r.url for r in records]:
-                        records.append(_build_record(rec_url, meta, issuer, strat, ts))
-                        if diagnostics is not None:
-                            diagnostics["documents"]["successfully_fetched"] += 1
-                            diagnostics["documents"]["successfully_parsed"] += 1
-                    if len(records) >= strat.max_docs:
-                        break
-                
-                # Scan ahead to locate pagination links safely
-                all_anchors = extract_links(res.text, base_url=target_url)
                 next_page_url = None
-                target_param_match = f"page={page_count + 1}"
-                
-                for anchor in all_anchors:
-                    href_lower = anchor["href"].lower()
-                    if target_param_match in href_lower or (strat.paging_param and f"{strat.paging_param}={page_count + 1}" in href_lower):
-                        # Fix: Forces normalization back to absolute form
-                        next_page_url = urljoin(target_url, anchor["href"])
-                        break
+
+                # Process JSON API streams directly for fast indexing shortcuts
+                if res.content_type.startswith("application/json") or res.text.strip().startswith(("{", "[")):
+                    try:
+                        parsed_json = json.loads(res.text)
+                        if strat.json_extraction_hook:
+                            nodes = strat.json_extraction_hook(parsed_json)
+                            if diagnostics is not None:
+                                diagnostics["documents"]["total_discovered"] += len(nodes)
+                            for n in nodes:
+                                # Fix: Bind the year explicitly from the API node payload if present
+                                meta = {"title": n["text"], "year": n.get("year"), "doi": None}
+                                rec_url = n["href"]
+                                if rec_url not in [r.url for r in records]:
+                                    records.append(_build_record(rec_url, meta, issuer, strat, ts))
+                                    if diagnostics is not None:
+                                        diagnostics["documents"]["successfully_fetched"] += 1
+                                        diagnostics["documents"]["successfully_parsed"] += 1
+                    except Exception:
+                        pass
+                else:
+                    # Parse HTML anchors
+                    anchors = extract_links(res.text, base_url=target_url, pattern=strat.doc_pattern)
+                    if anchors and diagnostics is not None:
+                        diagnostics["documents"]["total_discovered"] += len(anchors)
+
+                    for a in anchors:
+                        # Fallback: parse year directly from listing anchor text string
+                        title_text = a["text"]
+                        text_match = re.search(r"\b((?:19|20)\d{2})\b", title_text)
+                        found_year = text_match.group(1) if text_match else None
                         
-                if len(records) == count_before_page or not next_page_url:
+                        meta = {"title": title_text, "year": found_year, "doi": None}
+                        rec_url = a["href"]
+                        if rec_url not in [r.url for r in records]:
+                            records.append(_build_record(rec_url, meta, issuer, strat, ts))
+                            if diagnostics is not None:
+                                diagnostics["documents"]["successfully_fetched"] += 1
+                                diagnostics["documents"]["successfully_parsed"] += 1
+                                
+                    all_anchors = extract_links(res.text, base_url=target_url)
+                    target_param_match = f"page={page_count + 1}"
+                    for anchor in all_anchors:
+                        href_lower = anchor["href"].lower()
+                        if target_param_match in href_lower or (strat.paging_param and f"{strat.paging_param}={page_count + 1}" in href_lower):
+                            next_page_url = urljoin(target_url, anchor["href"])
+                            break
+
+                if len(records) == count_before_page or (not next_page_url and not strat.paging_param):
                     break
 
-                target_url = next_page_url
+                if strat.paging_param and not next_page_url:
+                    separator = "&" if "?" in base_listing else "?"
+                    next_offset = page_count * 100
+                    target_url = f"{base_listing}{separator}{strat.paging_param}={next_offset}"
+                else:
+                    target_url = next_page_url
+                    
                 page_count += 1
                 
         return records[: strat.max_docs]
@@ -436,6 +520,7 @@ def crawl_issuer(abbrev: str, *, crawler: Optional[PoliteCrawler] = None,
             continue
             
     return records
+
 
 def crawl_issuers(abbrevs: Optional[List[str]] = None, *,
                   crawler: Optional[PoliteCrawler] = None,
